@@ -13,23 +13,47 @@ start:
     ; Cursor positionieren
     mov ah, 0x02
     mov bh, 0x00
-    mov dh, 0x0A
-    mov dl, 0x0A
+    mov dh, 0x03
+    mov dl, 0x08
+    int 0x10
+
+    ; Logo ausgeben
+    mov si, logo
+.loop1:
+    lodsb
+    or al, al
+    jz done1
+    mov ah, 0x0E
+    int 0x10
+    jmp .loop1
+done1:
+
+    ; Cursor für Text
+    mov ah, 0x02
+    mov bh, 0x00
+    mov dh, 0x08
+    mov dl, 0x08
     int 0x10
 
     ; Text ausgeben
     mov si, msg
-.loop:
+.loop2:
     lodsb
     or al, al
     jz halt
     mov ah, 0x0E
     int 0x10
-    jmp .loop
+    jmp .loop2
 halt:
     hlt
 
-msg db "SassanidOS wird gestartet...", 0
+logo db "  ____                              _     _  ___  ____  ", 13, 10
+     db " / ___|  __ _  ___  ___  __ _ _ __ (_) __| |/ _ \/ ___| ", 13, 10
+     db " \___ \ / _` |/ __|/ __|/ _` | '_ \| |/ _` | | | \___ \ ", 13, 10
+     db "  ___) | (_| \__ \\__ \ (_| | | | | | (_| | |_| |___) |", 13, 10
+     db " |____/ \__,_|___/___/\__,_|_| |_|_|\__,_|\___/|____/ ", 13, 10, 0
+
+msg db "      Willkommen bei SassanidOS v0.1", 0
 
 times 510-($-$$) db 0
 dw 0xAA55
