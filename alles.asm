@@ -2,17 +2,25 @@ BITS 16
 ORG 0x7C00
 
 start:
+    cli
+    xor ax, ax
+    mov ss, ax
+    mov sp, 0x7C00
+    sti
+
     mov ah, 0x06
     mov al, 0x00
     mov bh, 0x1F
     mov cx, 0x0000
     mov dx, 0x184F
     int 0x10
+
     mov ah, 0x02
     mov bh, 0x00
     mov dh, 0x00
     mov dl, 0x00
     int 0x10
+
     mov si, willkommen
     call print
 
@@ -21,29 +29,28 @@ prompt:
     call print
     mov di, buf
     call readline
+
     mov si, buf
     mov di, cmd_hilfe
     call strcmp
     je do_hilfe
+
     mov si, buf
-    mov di, cmd_info
+    mov di, cmd_scan
     call strcmp
-    je do_info
+    je do_scan
+
     mov si, buf
     mov di, cmd_clear
     call strcmp
     je do_clear
+
     mov si, unbekannt
     call print
     jmp prompt
 
 do_hilfe:
     mov si, hilfe_text
-    call print
-    jmp prompt
-
-do_info:
-    mov si, info_text
     call print
     jmp prompt
 
@@ -59,6 +66,21 @@ do_clear:
     mov dh, 0x00
     mov dl, 0x00
     int 0x10
+    jmp prompt
+
+do_scan:
+    mov si, scan_start
+    call print
+    mov cx, 0xFFFF
+delay:
+    loop delay
+    mov si, scan_ok
+    call print
+    mov cx, 0xFFFF
+delay2:
+    loop delay2
+    mov si, scan_done
+    call print
     jmp prompt
 
 print:
@@ -117,13 +139,15 @@ strcmp:
 .n: add al, 0
     ret
 
-willkommen  db "SassanidOS v0.1 - 'hilfe' fuer Befehle",13,10,0
+willkommen  db "SassanidOS v0.2",13,10,0
 prompt_str  db "> ",0
-unbekannt   db "Unbekannt!",13,10,0
-hilfe_text  db "hilfe/info/clear",13,10,0
-info_text   db "SassanidOS by David",13,10,0
+unbekannt   db "Fehler!",13,10,0
+hilfe_text  db "hilfe/scan/clear",13,10,0
+scan_start  db "Scan...",13,10,0
+scan_ok     db "[OK] Sauber",13,10,0
+scan_done   db "Fertig!",13,10,0
 cmd_hilfe   db "hilfe",0
-cmd_info    db "info",0
+cmd_scan    db "scan",0
 cmd_clear   db "clear",0
 buf times 32 db 0
 
