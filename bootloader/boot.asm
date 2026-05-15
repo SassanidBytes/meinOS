@@ -52,14 +52,14 @@ load_kernel:
     mov ch, 0x00
     mov cl, 0x02
     mov dh, 0x00
-    mov dl, 0x80
+    mov dl, 0x00
     mov bx, 0x1000
     mov es, bx
     mov bx, 0x0000
     int 0x13
 
     ; Zum Kernel springen
-    jmp 0x1000:0x0000
+    jmp 0x0000:0x1000
 
 logo db "  ____                              _     _  ___  ____  ", 13, 10
      db " / ___|  __ _  ___  ___  __ _ _ __ (_) __| |/ _ \/ ___| ", 13, 10
