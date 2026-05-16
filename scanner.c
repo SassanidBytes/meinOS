@@ -2,9 +2,9 @@
 #include <windows.h>
 #include <string.h>
 
-// Farben für die Konsole
-#define ROT   FOREGROUND_RED
-#define GRUEN (FOREGROUND_GREEN)
+// Farben
+#define ROT   FOREGROUND_RED | FOREGROUND_INTENSITY
+#define GRUEN FOREGROUND_GREEN
 #define GELB  (FOREGROUND_RED | FOREGROUND_GREEN)
 #define WEISS (FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE)
 
@@ -12,24 +12,81 @@ void setFarbe(int farbe) {
     SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), farbe);
 }
 
+// Verdächtige Muster die wir suchen
+const char* muster[] = {
+    "EICAR",
+    "virus",
+    "malware",
+    "ransomware",
+    "keylogger",
+    "trojan",
+    "DeleteFile",
+    "FORMAT C:",
+    NULL  // Ende der Liste
+};
+
+// Verdächtige Dateiendungen
+const char* gefahrEndungen[] = {
+    ".bat", ".vbs", ".ps1", ".cmd", NULL
+};
+
 void druckeHeader() {
     setFarbe(GELB);
-    printf("╔══════════════════════════════════╗\n");
-    printf("║     SassanidOS AntiVirus v1.0    ║\n");
-    printf("║         von SassanidBytes        ║\n");
-    printf("╚══════════════════════════════════╝\n\n");
+    printf("=====================================\n");
+    printf("    SassanidOS AntiVirus v2.0\n");
+    printf("       von SassanidBytes\n");
+    printf("=====================================\n\n");
     setFarbe(WEISS);
 }
+
+// Prüft ob Dateiname verdächtige Endung hat
+int istGefahrEndung(const char* dateiname) {
+    for (int i = 0; gefahrEndungen[i] != NULL; i++) {
+        int nLen = strlen(dateiname);
+        int eLen = strlen(gefahrEndungen[i]);
+        if (nLen > eLen) {
+            // Vergleiche das Ende des Dateinamens
+            if (_stricmp(dateiname + nLen - eLen, gefahrEndungen[i]) == 0) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+// Schaut in die Datei rein und sucht Muster
+int scanneDateiInhalt(const char* pfad) {
+    FILE* f = fopen(pfad, "rb");
+    if (!f) return 0;
+
+    char puffer[1024];
+    int gefunden = 0;
+
+    while (fread(puffer, 1, sizeof(puffer), f) > 0) {
+        for (int i = 0; muster[i] != NULL; i++) {
+            if (strstr(puffer, muster[i]) != NULL) {
+                setFarbe(ROT);
+                printf("    !! Verdaechtiges Muster gefunden: \"%s\"\n", muster[i]);
+                setFarbe(WEISS);
+                gefunden = 1;
+            }
+        }
+    }
+
+    fclose(f);
+    return gefunden;
+}
+
+int gesamtDateien = 0;
+int gesamtVerdaechtig = 0;
 
 void scanneOrdner(const char* pfad) {
     WIN32_FIND_DATA datei;
     HANDLE suche;
     char suchPfad[MAX_PATH];
-    int anzahl = 0;
+    char vollPfad[MAX_PATH];
 
-    // Suchpfad zusammenbauen z.B. "C:\Test\*"
     snprintf(suchPfad, MAX_PATH, "%s\\*", pfad);
-
     suche = FindFirstFile(suchPfad, &datei);
 
     if (suche == INVALID_HANDLE_VALUE) {
@@ -39,56 +96,75 @@ void scanneOrdner(const char* pfad) {
         return;
     }
 
-    printf("[*] Scanne: %s\n\n", pfad);
-
     do {
-        // Versteckte Systemordner überspringen
         if (strcmp(datei.cFileName, ".") == 0 ||
-            strcmp(datei.cFileName, "..") == 0) {
-            continue;
-        }
+            strcmp(datei.cFileName, "..") == 0) continue;
 
-        // Dateigröße berechnen
-        LARGE_INTEGER groesse;
-        groesse.LowPart  = datei.nFileSizeLow;
-        groesse.HighPart = datei.nFileSizeHigh;
+        snprintf(vollPfad, MAX_PATH, "%s\\%s", pfad, datei.cFileName);
 
         if (datei.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-            // Unterordner
             setFarbe(GELB);
-            printf("  [ORDNER] %s\n", datei.cFileName);
+            printf("[ORDNER] %s\n", vollPfad);
+            setFarbe(WEISS);
+            // Unterordner auch scannen!
+            scanneOrdner(vollPfad);
         } else {
-            // Normale Datei
-            setFarbe(GRUEN);
-            printf("  [OK] %-30s  %lld Bytes\n",
-                   datei.cFileName, groesse.QuadPart);
-        }
+            gesamtDateien++;
+            int verdaechtig = 0;
 
-        setFarbe(WEISS);
-        anzahl++;
+            // Endung prüfen
+            if (istGefahrEndung(datei.cFileName)) {
+                setFarbe(ROT);
+                printf("[WARNUNG] Verdaechtige Endung: %s\n", vollPfad);
+                setFarbe(WEISS);
+                verdaechtig = 1;
+            }
+
+            // Inhalt prüfen
+            if (scanneDateiInhalt(vollPfad)) {
+                if (!verdaechtig) {
+                    setFarbe(ROT);
+                    printf("[WARNUNG] %s\n", vollPfad);
+                }
+                verdaechtig = 1;
+            }
+
+            if (!verdaechtig) {
+                setFarbe(GRUEN);
+                printf("[OK]      %s\n", datei.cFileName);
+                setFarbe(WEISS);
+            } else {
+                gesamtVerdaechtig++;
+            }
+        }
 
     } while (FindNextFile(suche, &datei));
 
     FindClose(suche);
-
-    printf("\n");
-    setFarbe(GELB);
-    printf("[✓] Scan abgeschlossen. %d Dateien gefunden.\n", anzahl);
-    setFarbe(WEISS);
 }
 
 int main(int argc, char* argv[]) {
     druckeHeader();
 
-    if (argc < 2) {
-        // Kein Pfad angegeben → aktuellen Ordner scannen
-        printf("[INFO] Kein Pfad angegeben. Scanne aktuellen Ordner...\n\n");
-        scanneOrdner(".");
+    const char* pfad = (argc >= 2) ? argv[1] : ".";
+    printf("[*] Scanne: %s\n\n", pfad);
+
+    scanneOrdner(pfad);
+
+    printf("\n=====================================\n");
+    printf("  Dateien gescannt : %d\n", gesamtDateien);
+
+    if (gesamtVerdaechtig > 0) {
+        setFarbe(ROT);
+        printf("  Bedrohungen      : %d  << ACHTUNG!\n", gesamtVerdaechtig);
     } else {
-        scanneOrdner(argv[1]);
+        setFarbe(GRUEN);
+        printf("  Bedrohungen      : 0  Alles sauber!\n");
     }
 
-    printf("\nDrücke ENTER zum Beenden...\n");
+    setFarbe(WEISS);
+    printf("=====================================\n");
+    printf("\nDruecke ENTER zum Beenden...\n");
     getchar();
     return 0;
 }
